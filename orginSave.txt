@@ -1,0 +1,3 @@
+currentArea area1.txt
+currentX 5
+currentY 5
