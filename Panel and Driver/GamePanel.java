@@ -1,271 +1,248 @@
-   //Name:  Samantha Frietchen  Date: 4/26/18  Lab: Lab17KeyInput
+//Jesse Raphael 
+//last edit May 11, 2019
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.*;
-import java.util.ArrayList;
-import java.io.*;
 import java.io.IOException;
 import java.io.File;
 import java.awt.MouseInfo;
 import java.util.HashMap;
-import javax.swing.JPopupMenu;
-import javax.swing.event.*;
+import javax.imageio.*;
 public class GamePanel extends JPanel
 {
    private static final int WIDTH = 1300;
    private static final int HEIGHT = 800;
    private static final int TILESIZE = 125;
-  
    private static final Color BACKGROUND = Color.BLACK;
+   
+   
    private BufferedImage myImage;
    private Graphics g;
-     // private ArrayList<Monster> monsters;
-   private Monster monster1;
-   private Monster monster2;
-   private Monster monster3;
-   private Hero hero;
-   private JPopupMenu inventoryMenu;
    private Timer t; 
-  
-      
-      
-      
-   private HashMap<String, Integer> saveData;
-   private int gameState = 0; 
+   
+   private HashMap<String, String> saveData;
+   private int gameState; 
  
+   private Hero hero; 
+   private JPopupMenu inventoryMenu;
    /*************
    gameState 1 instance data
    relevant to events occuring while moving on the grid
    *************/
    private int dir;//0=n,1=e,2=s,3=w
-   private int tileSize;
-   private int xShift = 0, yShift = 0;
+   //private int tileSize;
+   private int xShift, yShift, moveState;
    private Area a;
    private KeyListener gridModeKey;
+   private HeroGraphics heroGraphics;
+
    /*************
    Main menu instance data
    relevant to events occuring in the main menu
    *************/
-   private MouseListener mml;
-   private int lB_1 = WIDTH/2-300;
-   private int rB_1 = WIDTH/2+300;
-   private int tB_1 = HEIGHT/2-100;
-   private int bB_1 = HEIGHT/2+100;
-     
+   private JButton continueButton;//
+   private JButton newGameButton;//
+   private BufferedImage sky;
+   private BufferedImage grass;
+   private Cloud[] clouds;
+   //private int bgCount;
+   private int grassVelocity;
+   private int grassPosition;
+      
    public GamePanel() throws IOException
    {
-         //load Menu
+      loadMenu();
       myImage =  new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
       g = myImage.getGraphics();
-         
-       
-      hero = new Hero(1000, 1000, 1000, 10, 30, 30, 12, 12, "StickFigure.png");
-      monster1 = new Monster(50, 50, 50, 10, 1, false, false, false, 30, 30, "slime with thiccer border.png");
-      monster2 = new Monster(50, 50, 50, 10, 1, false, false, false, 30, 30, "slimey boy 2.png");
-      monster3 = new Monster(50, 50, 50, 10, 1, false, false, false, 30, 30, "happy slime alt.png");
-         
-         
+      hero = new Hero(1000, 1000, 1000, 10, 100, 360, 20, 50);
+      inventoryMenu = new JPopupMenu("inventory");
       t = new Timer(50, new Listener());
       t.start();
-      gridModeKey = new GridModeKey();
-      mml = new MainMenuListener();
-      addMouseListener(mml);
-      inventoryMenu = new JPopupMenu("inventory");
-      
-      addKeyListener(new Key());
       setFocusable(true);
    }
+   
    public void paintComponent(Graphics g)
-   {//takes information to draw the backgroud
+   {  //takes information to draw the backgroud
       g.drawImage(myImage, 0, 0, getWidth(), getHeight(), null);
    }
+
+   private void LoadGame(String saveFile)
+   {
+      saveData = Save.loadSave(saveFile);
+      gameState = 1;
+      //prepare for grid gamestate
+      try {
+    	  heroGraphics = new HeroGraphics();
+      }catch(IOException e){}
+      a = new Area(saveData.get("currentArea"), TILESIZE, WIDTH/2, HEIGHT/2);
+      a.setCoor(Integer.parseInt(saveData.get("currentX")), Integer.parseInt(saveData.get("currentY")));
+      xShift = 0;
+      yShift = 0;
+      moveState = 0;
+      
+      remove(continueButton);
+      remove(newGameButton);
+      gridModeKey = new GridModeKey();
+      addKeyListener(gridModeKey);
+   }
+   private void loadMenu()
+   {
+	  gameState = 0;
+      setLayout(new GridBagLayout());
+      GridBagConstraints c = new GridBagConstraints();
+      newGameButton = new Button(new ImageIcon("button_1.png"),
+				 				new ImageIcon("button_1.1.png"),
+				 				new ImageIcon("button_1.2.png"),
+				 				new ActionListener(){
+    	  							public void actionPerformed(ActionEvent e){
+    	  								LoadGame("orginSave.txt");}
+      			 				});      
+
+      continueButton = new Button(new ImageIcon("button_2.png"),
+         	 					  new ImageIcon("button_2.1.png"),
+         	 					  new ImageIcon("button_2.2.png"),
+         	 					  new ActionListener(){
+            							public void actionPerformed(ActionEvent e){
+            								LoadGame("loadSave.txt");}
+         						  }); 
+      c.gridx = 0;
+      c.gridy = 0;
+      add(newGameButton, c);
+      c.gridx = 0;
+      c.gridy = 1;
+      add(continueButton, c);
+
+      grassPosition = 0;
+      grassVelocity = 5;
+      clouds = new Cloud[4]; 
+      for(int i=0; i<4;i++) {
+    	  clouds[i] = new Cloud();
+    	  clouds[i].setX(WIDTH-200*i);
+      }
+      try{
+         sky = ImageIO.read(new File("Sky.png"));
+         grass = ImageIO.read(new File("VerticalGrass.png"));
+      }catch(IOException e){}
+   }
+ /*  private void loadPause() {
+	   saveButton = new Button();
+	   inventory = new Button();
+   }
+   */
    private class Listener implements ActionListener
    {
-      public void actionPerformed(ActionEvent e)
-      {//sets background color and the fills the background rectangle
-           
+      public void actionPerformed(ActionEvent e) 
+      {
          if(gameState==0)
          {
-            g.setColor(new Color(200,200,200));
+            g.setColor(Color.WHITE);
             g.fillRect(0, 0, WIDTH, HEIGHT);
-            g.setColor(new Color(100,0,0));
-            g.fillRect(lB_1, tB_1, rB_1-lB_1, bB_1-tB_1);
-           
+            g.drawImage(sky, 0, 0, WIDTH, HEIGHT-200, null);
+            for(Cloud cloud: clouds)
+            	cloud.draw(g);
+            g.drawImage(grass, grassPosition, HEIGHT-200, WIDTH, 200, null);
+            g.drawImage(grass, grassPosition+WIDTH, HEIGHT-200, WIDTH, 200, null);
+            grassPosition-=grassVelocity;
+            if(grassPosition+WIDTH<=0)
+            	grassPosition=0;
          }
          else if(gameState==1)
          {
             g.setColor(BACKGROUND);
             g.fillRect(0, 0, WIDTH, HEIGHT);
             a.draw(g, xShift, yShift);
-            if(xShift!=0)
-            {
+            
+            if(xShift!=0||yShift!=0)
+               moveState = moveState%2+1;
+            else
+               moveState = 0;
+               
+            if(xShift!=0) {
                xShift-=(xShift/Math.abs(xShift))*TILESIZE/5;
-               /*code to implement character running animation*/
+               if(xShift==0)
+            	   gameState = a.interactStep();
             }
-            else if(yShift!=0)
-            {
+            else if(yShift!=0) {
                yShift-=(yShift/Math.abs(yShift))*TILESIZE/5;
+               if(yShift==0)
+            	   gameState = a.interactStep();
             }
+            heroGraphics.draw(g, dir, moveState, WIDTH/2-TILESIZE/2, HEIGHT/2-TILESIZE*3/2, TILESIZE, TILESIZE*2);
+             hero.drawStaminaBar(g, WIDTH - 50, HEIGHT - 110);       
+            hero.drawHealthBar(g, WIDTH/2 - 52, HEIGHT - 20);
+            if(hero.getArmour() != null)
+            {
+               hero.getArmour().draw(g, WIDTH/2-TILESIZE/2, HEIGHT/2-TILESIZE*3/2 + 5, 60, 60);
+            }
+            if(hero.getWeapon() != null)
+            {
+               hero.getWeapon().draw(g, WIDTH/2-TILESIZE/2 + 100, HEIGHT/2-TILESIZE*3/2 + 80, 90, 90);
+            }
+
+            
          }
-       /*  else if(gameState==2)
+         else if(gameState==2)
          {//pause menu opened
          
          }
+         /*
          else if(gameState==4)
          {//engaged in battle
          
          }*/
-           
-         monster1.draw(g, 200, 100);
-         monster2.draw(g, 300, 50);
-         monster3.draw(g, 222, 222);
-         hero.draw(g);
-         System.out.println(hero.getArmour());
-         System.out.println(hero.getWeapon());
-         hero.drawStaminaBar(g, WIDTH - 50, HEIGHT - 110);       
-         hero.drawHealthBar(g, WIDTH/2 - 52, HEIGHT - 20);
-         if(hero.getArmour() != null)
-         {
-            hero.getArmour().draw(g, 200, 200, 60, 60);
-         }
-         if(hero.getWeapon() != null)
-         {
-            hero.getWeapon().draw(g, 100, 100, 60, 60);
-         }
          repaint();
-      
       }
-   }   
-      
-
-      
-   /*   private void die(Monster monster, Hero hero)
-      {
-         if(monster.getHealth >= 0)
-         {
-            
-            hero.addEX(Math.random()*8 + monster.getLevel()*10);
-            monster.setCanLoot(true);
-            //picture for dead monster
-            //display exit option (return back to normal game play)
-            
-            
-         }
-      }*/
-   private void HeroUseWeapon(Hero hero, Weapon weapon, Monster monster)
-   {
-      if(hero.getStamina() >= weapon.getStaminaNeeded())
-      {
-         hero.setStamina(hero.getStamina() -weapon.getStaminaNeeded());
-         if(monster.getHealth() > weapon.getDamage())
-            monster.setHealth(monster.getHealth() - weapon.getDamage());
-         else
-         {
-            monster.setHealth(0);
-         }
-      }  
-   }  
-   private void HeroPunch(Hero hero, Monster monster)
-   {
-      double staminaNeeded = hero.getPower()*1.5;
-      if(hero.getStamina() >= staminaNeeded)
-      {
-         hero.setStamina(hero.getStamina() - staminaNeeded);
-         if(monster.getHealth() > hero.getPower())
-            monster.setHealth(monster.getHealth() - hero.getPower());
-         else
-         {
-            monster.setHealth(0);
-         }
-      } 
-   }
-   private class MainMenuListener extends MouseAdapter
-   {
-      public void mouseClicked(MouseEvent e)
-      {
-         Point p = MouseInfo.getPointerInfo().getLocation();
-         if(p.getX()>lB_1 && p.getX()<rB_1 && p.getY()>tB_1 && p.getY()<bB_1)
-         {
-            try{
-               saveData = Save.loadSave("orginSave.txt");
-            }
-            catch(IOException ioX){}
-            gameState = 1;
-            a = new Area(new File("area"+saveData.get("currentArea")+".txt"),
-                         TILESIZE, WIDTH/2, HEIGHT/2);
-            a.setCoor(saveData.get("currentX"), saveData.get("currentY"));
-            removeMouseListener(mml);
-            addKeyListener(gridModeKey);
-         }   
-      }
-   }
-     
+   } 
+   int count = 0;
    private class GridModeKey extends KeyAdapter
    {
-      public void keyPressed(KeyEvent e )
+      public void keyPressed(KeyEvent e)
       {       
-         if(xShift+yShift==0){
-            if (e.getKeyCode() == KeyEvent.VK_DOWN && a.isValidStep(a.getXIdx(), a.getYIdx()+1, dir)) {
-               if(dir==2)
-               {
+         if(gameState==1 && xShift+yShift==0){
+        	 if (e.getKeyCode() == KeyEvent.VK_W){
+                 if(dir==0 && a.isValidStep(a.getXIdx(), a.getYIdx()-1, dir)){
+                    a.decYIdx();
+                    yShift = -TILESIZE;
+                 }
+                 else
+                    dir=0;           
+              }
+        	 else if (e.getKeyCode() == KeyEvent.VK_D){
+        		 if(dir==1 && a.isValidStep(a.getXIdx()+1, a.getYIdx(), dir)){
+            	  	a.incXIdx();
+            	  	xShift = TILESIZE;
+        		 }
+        		 else
+        			 dir=1; 
+        	 } 
+        	 else if (e.getKeyCode() == KeyEvent.VK_S) {
+               if(dir==2 && a.isValidStep(a.getXIdx(), a.getYIdx()+1, dir)){
                   a.incYIdx();
                   yShift = TILESIZE;
                }
                else
                   dir=2;
             }
-            else if (e.getKeyCode() == KeyEvent.VK_UP && a.isValidStep(a.getXIdx(), a.getYIdx()-1, dir)){
-               if(dir==0)
-               {
-                  a.decYIdx();
-                  yShift = -TILESIZE;
-               }
-               else
-                  dir=0;           
-            }
-            else if (e.getKeyCode() == KeyEvent.VK_LEFT && a.isValidStep(a.getXIdx()-1, a.getYIdx(), dir)){
-               if(dir==3)
-               {
+            else if (e.getKeyCode() == KeyEvent.VK_A){
+               if(dir==3 && a.isValidStep(a.getXIdx()-1, a.getYIdx(), dir)){
                   a.decXIdx();
                   xShift = -TILESIZE;
                }
                else
                   dir=3; 
             } 
-            else if (e.getKeyCode() == KeyEvent.VK_RIGHT && a.isValidStep(a.getXIdx()+1, a.getYIdx(), dir)){
-               if(dir==1)
-               {
-                  a.incXIdx();
-                  xShift = TILESIZE;
-               }
-               else
-                  dir=1; 
+            else if (e.getKeyCode() == KeyEvent.VK_P){
+                gameState = 2;
             } 
-         }     
-         
-      }
-   }
-    
-     private class Key extends KeyAdapter
-     {
-         private int count;
-         public Key()
-         {
-            count = 0;
-         }
-         public void keyPressed (KeyEvent e )
-         {
-          
-            if(e.getKeyCode() == KeyEvent.VK_P)
-            {
+            else if(e.getKeyCode() == KeyEvent.VK_UP) {
                if(count <25)
                {
                   if(Math.random() < 0.5)
-                     hero.addToInv(new Armour(20, true, true, "Basic Armour", 10, "TestArmour.jpg"));
+                     hero.addToInv(new Armour(20, true, true, "Good Armour", 10, "TestArmour.png"));
                   else
-                     hero.addToInv(new Weapon(10, true, true, "Sword", 10, 10, 10, 10, 10, "TestSword.png"));
-                  JMenuItem item = new JMenuItem(hero.getInventory()[hero.getInvIndex()-1].getName(), hero.getInventory()[hero.getInvIndex()-1].getImage());
+                     hero.addToInv(new Weapon(50, true, true, "Iron Sword", 10, 20, 20, 40, 40, "testSword.png"));
+                  JMenuItem item = new JMenuItem(hero.getInventory()[hero.getInvIndex()-1].getName());
                   inventoryMenu.add(item);
                   item.addActionListener(new MenuListener(hero.getInventory()[hero.getInvIndex()-1], hero, g));
                  
@@ -274,14 +251,17 @@ public class GamePanel extends JPanel
                   System.out.println(hero.getInvIndex());
                }
             }
-            else if(e.getKeyCode() == KeyEvent.VK_I)
-            {
+            else if(e.getKeyCode() == KeyEvent.VK_I) {
                inventoryMenu.show(e.getComponent(), 50, 50);
             }
+         } 
+         else if(gameState==2 && e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+        	 gameState = 1;
          }
-     }  
-     
-     private class MenuListener implements ActionListener
+        	 
+      }
+   }
+   private class MenuListener implements ActionListener
      {
          private Items i;
          private Hero hero;
@@ -300,6 +280,7 @@ public class GamePanel extends JPanel
                System.out.println("weapon");
                System.out.println(((Weapon)i).getStaminaNeeded());
                hero.equipWeapon((Weapon)i);
+
                
                repaint();
             }
@@ -308,7 +289,6 @@ public class GamePanel extends JPanel
                System.out.println("armour");
                System.out.println(((Armour)i).getDefenseHelp());
                hero.equipArmour((Armour)i);
-               
                repaint();
             }
             else
@@ -319,6 +299,5 @@ public class GamePanel extends JPanel
             
          }
          
-     }   
-
+     }  
 }
